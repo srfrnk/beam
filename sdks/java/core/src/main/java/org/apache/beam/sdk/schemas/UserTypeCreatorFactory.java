@@ -15,20 +15,10 @@
  * See the License for the specific language governing permissions and
  * limitations under the License.
  */
-package org.apache.beam.runners.dataflow.worker.fn;
+package org.apache.beam.sdk.schemas;
 
-import java.util.concurrent.atomic.AtomicLong;
-
-/**
- * IdGenerator generates a new, unique identifier on each invocation.
- *
- * <p>Consumers of these ids should not make any additional assumptions regarding the nature of the
- * returned identifiers. Uniqueness is the only guaranteed property.
- */
-public final class IdGenerator {
-  private static final AtomicLong idGenerator = new AtomicLong(-1);
-
-  public static String generate() {
-    return Long.toString(idGenerator.getAndDecrement());
-  }
+/** A factory for {@link SchemaUserTypeCreator} objects. */
+public interface UserTypeCreatorFactory extends Factory<SchemaUserTypeCreator> {
+  @Override
+  SchemaUserTypeCreator create(Class<?> clazz, Schema schema);
 }

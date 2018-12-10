@@ -20,7 +20,6 @@ package org.apache.beam.runners.flink.translation.wrappers.streaming;
 import static org.apache.flink.util.Preconditions.checkNotNull;
 
 import com.google.common.base.Preconditions;
-import java.io.ByteArrayInputStream;
 import java.io.ByteArrayOutputStream;
 import java.io.IOException;
 import java.nio.ByteBuffer;
@@ -44,7 +43,6 @@ import org.apache.beam.runners.core.StateTags;
 import org.apache.beam.runners.core.TimerInternals;
 import org.apache.beam.runners.core.construction.Timer;
 import org.apache.beam.runners.core.construction.graph.ExecutableStage;
-import org.apache.beam.runners.core.construction.graph.TimerReference;
 import org.apache.beam.runners.flink.translation.functions.FlinkExecutableStageContext;
 import org.apache.beam.runners.flink.translation.functions.FlinkStreamingSideInputHandlerFactory;
 import org.apache.beam.runners.fnexecution.control.BundleProgressHandler;
@@ -57,6 +55,7 @@ import org.apache.beam.runners.fnexecution.provisioning.JobInfo;
 import org.apache.beam.runners.fnexecution.state.StateRequestHandler;
 import org.apache.beam.runners.fnexecution.state.StateRequestHandlers;
 import org.apache.beam.sdk.coders.Coder;
+import org.apache.beam.sdk.coders.CoderException;
 import org.apache.beam.sdk.fn.data.FnDataReceiver;
 import org.apache.beam.sdk.options.PipelineOptions;
 import org.apache.beam.sdk.state.BagState;
@@ -65,6 +64,7 @@ import org.apache.beam.sdk.transforms.DoFn;
 import org.apache.beam.sdk.transforms.join.RawUnionValue;
 import org.apache.beam.sdk.transforms.windowing.BoundedWindow;
 import org.apache.beam.sdk.transforms.windowing.PaneInfo;
+import org.apache.beam.sdk.util.CoderUtils;
 import org.apache.beam.sdk.util.WindowedValue;
 import org.apache.beam.sdk.values.KV;
 import org.apache.beam.sdk.values.PCollectionView;
@@ -104,6 +104,7 @@ public class ExecutableStageDoFnOperator<InputT, OutputT> extends DoFnOperator<I
   private transient StageBundleFactory stageBundleFactory;
   private transient ExecutableStage executableStage;
   private transient SdkHarnessDoFnRunner<InputT, OutputT> sdkHarnessRunner;
+  private transient long backupWatermarkHold = Long.MIN_VALUE;
 
   public ExecutableStageDoFnOperator(
       String stepName,
@@ -280,8 +281,9 @@ public class ExecutableStageDoFnOperator<InputT, OutputT> extends DoFnOperator<I
 
   @Override
   public void setCurrentKey(Object key) {
-    // We don't need to set anything, the key is set manually on the state backend
-    // This will be called by HeapInternalTimerService before a timer is fired
+    // We don't need to set anything, the key is set manually on the state backend in
+    // the case of state access. For timers, the key will be extracted from the timer
+    // element, i.e. in HeapInternalTimerService
     if (!usesTimers) {
       throw new UnsupportedOperationException(
           "Current key for state backend can only be set by state requests from SDK workers or when processing timers.");
@@ -291,7 +293,7 @@ public class ExecutableStageDoFnOperator<InputT, OutputT> extends DoFnOperator<I
   @Override
   public Object getCurrentKey() {
     // This is the key retrieved by HeapInternalTimerService when setting a Flink timer
-    return sdkHarnessRunner.getTimerKeyForRegistration();
+    return sdkHarnessRunner.getCurrentTimerKey();
   }
 
   @Override
@@ -300,17 +302,16 @@ public class ExecutableStageDoFnOperator<InputT, OutputT> extends DoFnOperator<I
     final ByteBuffer encodedKey = (ByteBuffer) timer.getKey();
     @SuppressWarnings("ByteBufferBackingArray")
     byte[] bytes = encodedKey.array();
-    ByteArrayInputStream byteStream = new ByteArrayInputStream(bytes);
     final Object decodedKey;
     try {
-      decodedKey = keyCoder.decode(byteStream);
-    } catch (IOException e) {
+      decodedKey = CoderUtils.decodeFromByteArray(keyCoder, bytes);
+    } catch (CoderException e) {
       throw new RuntimeException(
-          String.format(
-              Locale.ENGLISH, "Failed to decode encoded key: %s", Arrays.toString(bytes)));
+          String.format(Locale.ENGLISH, "Failed to decode encoded key: %s", Arrays.toString(bytes)),
+          e);
     }
     // Prepare the SdkHarnessRunner with the key for the timer
-    sdkHarnessRunner.setTimerKeyForFire(decodedKey);
+    sdkHarnessRunner.setCurrentTimerKey(decodedKey);
     super.fireTimer(timer);
   }
 
@@ -352,7 +353,6 @@ public class ExecutableStageDoFnOperator<InputT, OutputT> extends DoFnOperator<I
             progressHandler,
             outputManager,
             outputMap,
-            executableStage.getTimers(),
             (Coder<BoundedWindow>) windowingStrategy.getWindowFn().windowCoder(),
             keySelector,
             timerInternals);
@@ -393,11 +393,16 @@ public class ExecutableStageDoFnOperator<InputT, OutputT> extends DoFnOperator<I
       } else {
         // It is not safe to advance the output watermark yet, so add a hold on the current
         // output watermark.
-        setPushedBackWatermark(Math.min(currentOutputWatermark, getPushbackWatermarkHold()));
+        backupWatermarkHold = Math.max(backupWatermarkHold, getPushbackWatermarkHold());
+        setPushedBackWatermark(Math.min(currentOutputWatermark, backupWatermarkHold));
         sdkHarnessRunner.setBundleFinishedCallback(
             () -> {
               try {
-                processWatermark(mark);
+                LOG.debug("processing pushed back watermark: {}", mark);
+                // at this point the bundle is finished, allow the watermark to pass
+                // we are restoring the previous hold in case it was already set for side inputs
+                setPushedBackWatermark(backupWatermarkHold);
+                super.processWatermark(mark);
               } catch (Exception e) {
                 throw new RuntimeException(
                     "Failed to process pushed back watermark after finished bundle.", e);
@@ -428,11 +433,11 @@ public class ExecutableStageDoFnOperator<InputT, OutputT> extends DoFnOperator<I
     private RemoteBundle remoteBundle;
     private FnDataReceiver<WindowedValue<?>> mainInputReceiver;
     private Runnable bundleFinishedCallback;
-    // Timer key set before calling Flink's internal timer service. Used to
-    // avoid synchronizing on the state backend.
-    private Object keyForTimerToBeSet;
-    // Set before calling onTimer
-    private Object keyForTimerToBeFired;
+    // Timer key set before calling Flink's internal timer service to register
+    // a timer. The timer service will retrieve this with a call to {@code getCurrentKey}.
+    // Before firing a timer, this will be initialized with the current key
+    // from the timer element.
+    private Object currentTimerKey;
 
     public SdkHarnessDoFnRunner(
         String mainInput,
@@ -441,7 +446,6 @@ public class ExecutableStageDoFnOperator<InputT, OutputT> extends DoFnOperator<I
         BundleProgressHandler progressHandler,
         BufferedOutputManager<OutputT> outputManager,
         Map<String, TupleTag<?>> outputMap,
-        Collection<TimerReference> timers,
         Coder<BoundedWindow> windowCoder,
         KeySelector<WindowedValue<InputT>, ?> keySelector,
         TimerInternals timerInternals) {
@@ -505,7 +509,7 @@ public class ExecutableStageDoFnOperator<InputT, OutputT> extends DoFnOperator<I
     public void onTimer(
         String timerId, BoundedWindow window, Instant timestamp, TimeDomain timeDomain) {
       Preconditions.checkNotNull(
-          keyForTimerToBeFired, "Key for timer needs to be set before calling onTimer");
+          currentTimerKey, "Key for timer needs to be set before calling onTimer");
       LOG.debug("timer callback: {} {} {} {}", timerId, window, timestamp, timeDomain);
       FnDataReceiver<WindowedValue<?>> timerReceiver =
           Preconditions.checkNotNull(
@@ -514,7 +518,7 @@ public class ExecutableStageDoFnOperator<InputT, OutputT> extends DoFnOperator<I
               timerId);
       WindowedValue<KV<Object, Timer>> timerValue =
           WindowedValue.of(
-              KV.of(keyForTimerToBeFired, Timer.of(timestamp, new byte[0])),
+              KV.of(currentTimerKey, Timer.of(timestamp, new byte[0])),
               timestamp,
               Collections.singleton(window),
               PaneInfo.NO_FIRING);
@@ -524,7 +528,7 @@ public class ExecutableStageDoFnOperator<InputT, OutputT> extends DoFnOperator<I
         throw new RuntimeException(
             String.format(Locale.ENGLISH, "Failed to process timer %s", timerReceiver), e);
       } finally {
-        keyForTimerToBeFired = null;
+        currentTimerKey = null;
       }
     }
 
@@ -547,13 +551,13 @@ public class ExecutableStageDoFnOperator<InputT, OutputT> extends DoFnOperator<I
     }
 
     /** Key for timer which has not been registered yet. */
-    Object getTimerKeyForRegistration() {
-      return keyForTimerToBeSet;
+    Object getCurrentTimerKey() {
+      return currentTimerKey;
     }
 
     /** Key for timer which is about to be fired. */
-    void setTimerKeyForFire(Object key) {
-      this.keyForTimerToBeFired = key;
+    void setCurrentTimerKey(Object key) {
+      this.currentTimerKey = key;
     }
 
     boolean isBundleInProgress() {
@@ -605,12 +609,12 @@ public class ExecutableStageDoFnOperator<InputT, OutputT> extends DoFnOperator<I
 
     private void setTimer(WindowedValue timerElement, TimerInternals.TimerData timerData) {
       try {
-        keyForTimerToBeSet = keySelector.getKey(timerElement);
+        currentTimerKey = keySelector.getKey(timerElement);
         timerInternals.setTimer(timerData);
       } catch (Exception e) {
         throw new RuntimeException("Couldn't set timer", e);
       } finally {
-        keyForTimerToBeSet = null;
+        currentTimerKey = null;
       }
     }
 

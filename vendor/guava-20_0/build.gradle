@@ -23,10 +23,13 @@ description = "Apache Beam :: Vendored Dependencies :: Guava 20"
 group = "org.apache.beam"
 version = "0.1"
 
-
 vendorJava(
-  dependency: "com.google.guava:guava:20.0",
-  packagesToRelocate: ["com.google.common", "com.google.thirdparty"],
-  intoPackage: "org.apache.beam.guava.v20_0",
-  artifactId: "beam-vendor-guava-20_0"
+  dependencies: ["com.google.guava:guava:20.0"],
+  relocations: [
+    "com.google.common": "org.apache.beam.vendor.guava.v20_0.com.google.common",
+    "com.google.thirdparty": "org.apache.beam.vendor.guava.v20_0.com.google.thirdparty",
+  ],
+  groupId: group,
+  artifactId: "beam-vendor-guava-20_0",
+  version: version,
 )

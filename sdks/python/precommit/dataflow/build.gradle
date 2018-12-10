@@ -16,21 +16,26 @@
  * limitations under the License.
  */
 
-import org.apache.beam.gradle.GrpcVendoring
-
-description = "Apache Beam :: Vendored Dependencies :: Java :: gRPC :: v1"
-ext.summary = "Add support to Apache Beam for Vendored gRPC V1."
-
 apply plugin: org.apache.beam.gradle.BeamModulePlugin
-applyJavaNature(enableFindbugs: false, shadowClosure: GrpcVendoring.shadowClosure(project))
+applyPythonNature()
 
-// Don't force modules here because we don't want to take the shared declarations in build_rules.gradle
-// because we would like to have the freedom to choose which versions of dependencies we
-// are using for the portability APIs separate from what is being used inside other modules such as GCP.
-configurations.all { config ->
-  config.resolutionStrategy { forcedModules = []}
+task precommitIT(dependsOn: ['sdist', 'installGcpTest']) {
+  doLast {
+    // Basic integration tests to run in PreCommit
+    def precommitTests = [
+        "apache_beam.examples.wordcount_it_test:WordCountIT.test_wordcount_it",
+        "apache_beam.examples.streaming_wordcount_it_test:StreamingWordCountIT.test_streaming_wordcount_it",
+    ]
+    def testOpts = [
+        "--tests=${precommitTests.join(',')}",
+        "--nocapture",    // Print stdout instantly
+        "--processes=2",    // Number of tests running in parallel
+        "--process-timeout=1800",   // Timeout of whole command execution
+    ]
+
+    exec {
+      executable 'sh'
+      args '-c', ". ${project.ext.envdir}/bin/activate && ${project.ext.pythonRootDir}/scripts/run_integration_test.sh --test_opts \"${testOpts.join(' ')}\""
+    }
+  }
 }
-
-dependencies GrpcVendoring.dependenciesClosure(project)
-
-// TODO(BEAM-4544): Integrate intellij support into this.
