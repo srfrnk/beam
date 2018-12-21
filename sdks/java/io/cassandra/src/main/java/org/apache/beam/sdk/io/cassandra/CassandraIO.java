@@ -168,7 +168,7 @@ public class CassandraIO {
     }
 
     /** Specify the Cassandra table where to read data. */
-    public Read<T> withWhere(Clause where) {
+    public Read<T> withWhere(String where) {
       return builder().setWhere(where).build();
     }
 
@@ -254,7 +254,7 @@ public class CassandraIO {
 
       abstract Builder<T> setTable(String table);
 
-      abstract Builder<T> setWhere(Clause where);
+      abstract Builder<T> setWhere(String where);
 
       abstract Builder<T> setEntity(Class<T> entity);
 

@@ -28,12 +28,11 @@ import com.datastax.driver.core.Row;
 import com.datastax.driver.core.Session;
 import com.datastax.driver.core.policies.DCAwareRoundRobinPolicy;
 import com.datastax.driver.core.policies.TokenAwarePolicy;
-import com.datastax.driver.core.querybuilder.Clause;
 import com.datastax.driver.core.querybuilder.QueryBuilder;
-import com.datastax.driver.core.querybuilder.Select;
 import com.datastax.driver.mapping.Mapper;
 import com.datastax.driver.mapping.MappingManager;
 import com.google.common.annotations.VisibleForTesting;
+import com.google.common.base.Joiner;
 import com.google.common.collect.Iterators;
 import com.google.common.util.concurrent.ListenableFuture;
 import java.math.BigInteger;
@@ -80,7 +79,6 @@ public class CassandraServiceImpl<T> implements CassandraService<T> {
       LOG.debug("Queries: " + source.splitQueries);
       List<ResultSetFuture> futures = new ArrayList<>();
       for (String query : source.splitQueries) {
-        LOG.info("Cassandra query: {}",query);
         futures.add(session.executeAsync(query));
       }
 
@@ -238,39 +236,42 @@ public class CassandraServiceImpl<T> implements CassandraService<T> {
     for (List<RingRange> split : splits) {
       List<String> queries = new ArrayList<>();
       for (RingRange range : split) {
-        Select.Where builder = QueryBuilder.select().from(spec.keyspace(), spec.table()).where();
-        if(spec.where()!=null)
-        {
-          builder=builder.and(spec.where());
-        }
         if (range.isWrapping()) {
-          // A wrapping range is one that overlaps from the end of the partitioner range and its
+          // A wrapping range is one that overlaps from the end of the partitioner range
+          // and its
           // start (ie : when the start token of the split is greater than the end token)
-          // We need to generate two queries here : one that goes from the start token to the end of
-          // the partitioner range, and the other from the start of the partitioner range to the
+          // We need to generate two queries here : one that goes from the start token to
+          // the end of
+          // the partitioner range, and the other from the start of the partitioner range
+          // to the
           // end token of the split.
-          builder = builder.and(QueryBuilder.gte("token(" + partitionKey + ")", range.getStart()));
-          String query = builder.toString();
-          LOG.debug("Cassandra generated read query : {}", query);
-          queries.add(query);
-
+          queries.add(generateRangeQuery(spec.keyspace(),spec.table(),spec.where(),partitionKey,range.getStart(),null));
           // Generation of the second query of the wrapping range
-          builder = QueryBuilder.select().from(spec.keyspace(), spec.table()).where();
-          builder = builder.and(QueryBuilder.lt("token(" + partitionKey + ")", range.getEnd()));
-          query = builder.toString();
-          LOG.debug("Cassandra generated read query : {}", query);
-          queries.add(query);
+          queries.add(generateRangeQuery(spec.keyspace(),spec.table(),spec.where(),partitionKey,null,range.getEnd()));
         } else {
-          builder = builder.and(QueryBuilder.gte("token(" + partitionKey + ")", range.getStart()));
-          builder = builder.and(QueryBuilder.lt("token(" + partitionKey + ")", range.getEnd()));
-          String query = builder.toString();
-          LOG.debug("Cassandra generated read query : {}", query);
-          queries.add(query);
+          queries.add(generateRangeQuery(spec.keyspace(),spec.table(),spec.where(),partitionKey,range.getStart(),range.getEnd()));
         }
       }
       sources.add(new CassandraIO.CassandraSource(spec, queries));
     }
     return sources;
+  }
+
+  private static String generateRangeQuery(
+    String keyspace,
+    String table,
+    String where,
+    String partitionKey,
+    BigInteger rangeStart,
+    BigInteger rangeEnd)
+  {
+          String query = String.format("SELECT * FROM %s.%s WHERE %s;", keyspace, table,
+          Joiner.on(" AND ").skipNulls().join(
+            String.format("(%s)", where),
+            rangeStart==null?null:String.format("(token(%s)>=%d)", partitionKey, rangeStart),
+            rangeEnd==null?null:String.format("(token(%s)<%d)", partitionKey, rangeEnd)));
+      LOG.debug("Cassandra generated read query : {}", query);
+      return query;
   }
 
   private static long getNumSplits(
