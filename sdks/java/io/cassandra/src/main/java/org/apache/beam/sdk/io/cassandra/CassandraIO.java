@@ -17,22 +17,10 @@
  */
 package org.apache.beam.sdk.io.cassandra;
 
-import static org.apache.beam.vendor.guava.v20_0.com.google.common.base.Preconditions.checkArgument;
-import static org.apache.beam.vendor.guava.v20_0.com.google.common.base.Preconditions.checkState;
+import static com.google.common.base.Preconditions.checkArgument;
+import static com.google.common.base.Preconditions.checkState;
 
-import com.datastax.driver.core.Cluster;
-import com.datastax.driver.core.ColumnMetadata;
-import com.datastax.driver.core.ConsistencyLevel;
-import com.datastax.driver.core.PlainTextAuthProvider;
-import com.datastax.driver.core.QueryOptions;
-import com.datastax.driver.core.ResultSet;
-import com.datastax.driver.core.ResultSetFuture;
-import com.datastax.driver.core.Row;
-import com.datastax.driver.core.Session;
-import com.datastax.driver.core.policies.DCAwareRoundRobinPolicy;
-import com.datastax.driver.core.policies.TokenAwarePolicy;
-import com.datastax.driver.mapping.Mapper;
-import com.datastax.driver.mapping.MappingManager;
+import com.datastax.driver.core.querybuilder.Clause;
 import com.google.auto.value.AutoValue;
 import com.google.common.base.Joiner;
 import com.google.common.util.concurrent.ListenableFuture;
@@ -147,6 +135,9 @@ public class CassandraIO {
     abstract Class<T> entity();
 
     @Nullable
+    abstract String where();
+
+    @Nullable
     abstract Coder<T> coder();
 
     @Nullable
@@ -218,6 +209,11 @@ public class CassandraIO {
     /** Specify the Cassandra table where to read data. */
     public Read<T> withTable(ValueProvider<String> table) {
       return builder().setTable(table).build();
+    }
+
+    /** Specify the Cassandra table where to read data. */
+    public Read<T> withWhere(Clause where) {
+      return builder().setWhere(where).build();
     }
 
     /**
@@ -376,6 +372,8 @@ public class CassandraIO {
       abstract Builder<T> setKeyspace(ValueProvider<String> keyspace);
 
       abstract Builder<T> setTable(ValueProvider<String> table);
+
+      abstract Builder<T> setWhere(Clause where);
 
       abstract Builder<T> setEntity(Class<T> entity);
 
