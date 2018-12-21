@@ -28,6 +28,7 @@ import com.datastax.driver.core.Row;
 import com.datastax.driver.core.Session;
 import com.datastax.driver.core.policies.DCAwareRoundRobinPolicy;
 import com.datastax.driver.core.policies.TokenAwarePolicy;
+import com.datastax.driver.core.querybuilder.Clause;
 import com.datastax.driver.core.querybuilder.QueryBuilder;
 import com.datastax.driver.core.querybuilder.Select;
 import com.datastax.driver.mapping.Mapper;
@@ -79,6 +80,7 @@ public class CassandraServiceImpl<T> implements CassandraService<T> {
       LOG.debug("Queries: " + source.splitQueries);
       List<ResultSetFuture> futures = new ArrayList<>();
       for (String query : source.splitQueries) {
+        LOG.info("Cassandra query: {}",query);
         futures.add(session.executeAsync(query));
       }
 
@@ -237,6 +239,10 @@ public class CassandraServiceImpl<T> implements CassandraService<T> {
       List<String> queries = new ArrayList<>();
       for (RingRange range : split) {
         Select.Where builder = QueryBuilder.select().from(spec.keyspace(), spec.table()).where();
+        if(spec.where()!=null)
+        {
+          builder=builder.and(spec.where());
+        }
         if (range.isWrapping()) {
           // A wrapping range is one that overlaps from the end of the partitioner range and its
           // start (ie : when the start token of the split is greater than the end token)
