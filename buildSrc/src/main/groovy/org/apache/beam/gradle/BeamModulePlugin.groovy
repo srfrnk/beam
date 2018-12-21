@@ -123,6 +123,9 @@ class BeamModulePlugin implements Plugin<Project> {
 
     /** Controls whether this project is published to Maven. */
     boolean publish = true
+
+    /** Controls whether javadoc is exported for this project. */
+    boolean exportJavadoc = true
   }
 
   /** A class defining the set of configurable properties accepted by applyPortabilityNature. */
@@ -441,7 +444,6 @@ class BeamModulePlugin implements Plugin<Project> {
         spark_network_common                        : "org.apache.spark:spark-network-common_2.11:$spark_version",
         spark_streaming                             : "org.apache.spark:spark-streaming_2.11:$spark_version",
         stax2_api                                   : "org.codehaus.woodstox:stax2-api:3.1.4",
-        vendored_grpc_1_13_1                        : "org.apache.beam:beam-vendor-grpc-1_13_1:0.1",
         vendored_guava_20_0                         : "org.apache.beam:beam-vendor-guava-20_0:0.1",
         woodstox_core_asl                           : "org.codehaus.woodstox:woodstox-core-asl:4.4.1",
         quickcheck_core                             : "com.pholser:junit-quickcheck-core:$quickcheck_version",
@@ -487,6 +489,47 @@ class BeamModulePlugin implements Plugin<Project> {
         exclude "com.google.common.util.concurrent.testing.**"
       }
       relocate "com.google.thirdparty", project.getJavaRelocatedPath("com.google.thirdparty")
+    }
+
+    project.ext.repositories = {
+      maven {
+        name "testPublicationLocal"
+        url "file://${project.rootProject.projectDir}/testPublication/"
+      }
+      maven {
+        url(project.properties['distMgmtSnapshotsUrl'] ?: isRelease(project)
+                ? 'https://repository.apache.org/service/local/staging/deploy/maven2'
+                : 'https://repository.apache.org/content/repositories/snapshots')
+
+        // We attempt to find and load credentials from ~/.m2/settings.xml file that a user
+        // has configured with the Apache release and snapshot staging credentials.
+        // <settings>
+        //   <servers>
+        //     <server>
+        //       <id>apache.releases.https</id>
+        //       <username>USER_TOKEN</username>
+        //       <password>PASS_TOKEN</password>
+        //     </server>
+        //     <server>
+        //       <id>apache.snapshots.https</id>
+        //       <username>USER_TOKEN</username>
+        //       <password>PASS_TOKEN</password>
+        //     </server>
+        //   </servers>
+        // </settings>
+        def settingsXml = new File(System.getProperty('user.home'), '.m2/settings.xml')
+        if (settingsXml.exists()) {
+          def serverId = (project.properties['distMgmtServerId'] ?: isRelease(project)
+                  ? 'apache.releases.https' : 'apache.snapshots.https')
+          def m2SettingCreds = new XmlSlurper().parse(settingsXml).servers.server.find { server -> serverId.equals(server.id.text()) }
+          if (m2SettingCreds) {
+            credentials {
+              username m2SettingCreds.username.text()
+              password m2SettingCreds.password.text()
+            }
+          }
+        }
+      }
     }
 
     // Configures a project with a default set of plugins that should apply to all Java projects.
@@ -604,17 +647,18 @@ class BeamModulePlugin implements Plugin<Project> {
         // Note that these plugins specifically use the compileOnly and testCompileOnly
         // configurations because they are never required to be shaded or become a
         // dependency of the output.
-        def auto_value = "com.google.auto.value:auto-value:1.5.3"
+        def auto_value = "com.google.auto.value:auto-value:1.6.3"
+        def auto_value_annotations = "com.google.auto.value:auto-value-annotations:1.6.3"
         def auto_service = "com.google.auto.service:auto-service:1.0-rc2"
 
-        compileOnly auto_value
+        compileOnly auto_value_annotations
+        testCompileOnly auto_value_annotations
         apt auto_value
-        testCompileOnly auto_value
         testApt auto_value
 
         compileOnly auto_service
-        apt auto_service
         testCompileOnly auto_service
+        apt auto_service
         testApt auto_service
 
         // These dependencies are needed to avoid error-prone warnings on package-info.java files,
@@ -625,8 +669,8 @@ class BeamModulePlugin implements Plugin<Project> {
         // See: https://www.apache.org/legal/resolved.html#prohibited
         def findbugs_annotations = "com.google.code.findbugs:annotations:3.0.1"
         compileOnly findbugs_annotations
-        apt findbugs_annotations
         testCompileOnly findbugs_annotations
+        apt findbugs_annotations
         testApt findbugs_annotations
       }
 
@@ -789,6 +833,9 @@ class BeamModulePlugin implements Plugin<Project> {
         project.tasks.check.dependsOn project.tasks.validateShadedJarDoesntLeakNonProjectClasses
       }
 
+      project.ext.includeInJavaBom = configuration.publish
+      project.ext.exportJavadoc = configuration.exportJavadoc
+
       if ((isRelease(project) || project.hasProperty('publishing')) &&
       configuration.publish) {
         project.apply plugin: "maven-publish"
@@ -855,46 +902,7 @@ artifactId=${project.name}
         project.artifacts.archives project.javadocJar
 
         project.publishing {
-          repositories {
-            maven {
-              name "testPublicationLocal"
-              url "file://${project.rootProject.projectDir}/testPublication/"
-            }
-            maven {
-              url(project.properties['distMgmtSnapshotsUrl'] ?: isRelease(project)
-                      ? 'https://repository.apache.org/service/local/staging/deploy/maven2'
-                      : 'https://repository.apache.org/content/repositories/snapshots')
-
-              // We attempt to find and load credentials from ~/.m2/settings.xml file that a user
-              // has configured with the Apache release and snapshot staging credentials.
-              // <settings>
-              //   <servers>
-              //     <server>
-              //       <id>apache.releases.https</id>
-              //       <username>USER_TOKEN</username>
-              //       <password>PASS_TOKEN</password>
-              //     </server>
-              //     <server>
-              //       <id>apache.snapshots.https</id>
-              //       <username>USER_TOKEN</username>
-              //       <password>PASS_TOKEN</password>
-              //     </server>
-              //   </servers>
-              // </settings>
-              def settingsXml = new File(System.getProperty('user.home'), '.m2/settings.xml')
-              if (settingsXml.exists()) {
-                def serverId = (project.properties['distMgmtServerId'] ?: isRelease(project)
-                        ? 'apache.releases.https' : 'apache.snapshots.https')
-                def m2SettingCreds = new XmlSlurper().parse(settingsXml).servers.server.find { server -> serverId.equals(server.id.text()) }
-                if (m2SettingCreds) {
-                  credentials {
-                    username m2SettingCreds.username.text()
-                    password m2SettingCreds.password.text()
-                  }
-                }
-              }
-            }
-          }
+          repositories project.ext.repositories
 
           publications {
             mavenJava(MavenPublication) {
@@ -1368,12 +1376,13 @@ artifactId=${project.name}
       PortabilityNatureConfiguration configuration = it ? it as PortabilityNatureConfiguration : new PortabilityNatureConfiguration()
 
       project.ext.applyJavaNature(
+              exportJavadoc: false,
               enableFindbugs: false,
               shadowJarValidationExcludes: it.shadowJarValidationExcludes,
               shadowClosure: GrpcVendoring.shadowClosure() << {
                 // We perform all the code relocations but don't include
                 // any of the actual dependencies since they will be supplied
-                // by org.apache.beam:beam-vendor-grpc-v1_13_1:0.1
+                // by org.apache.beam:beam-vendor-grpc-v1p13p1:0.1
                 dependencies {
                   include(dependency { return false })
                 }
@@ -1410,7 +1419,7 @@ artifactId=${project.name}
         }
       }
 
-      project.dependencies GrpcVendoring.dependenciesClosure() << { shadow 'org.apache.beam:beam-vendor-grpc-1_13_1:0.1' }
+      project.dependencies GrpcVendoring.dependenciesClosure() << { shadow it.project(path: ":beam-vendor-grpc-1_13_1", configuration: "shadow") }
     }
 
     /** ***********************************************************************************************/
@@ -1499,7 +1508,7 @@ artifactId=${project.name}
       // For some reason base doesn't define a test task  so we define it below and make
       // check depend on it. This makes the Python project similar to the task layout like
       // Java projects, see https://docs.gradle.org/4.2.1/userguide/img/javaPluginTasks.png
-      project.task('test', type: Test) {}
+      project.task('test') {}
       project.check.dependsOn project.test
 
       project.evaluationDependsOn(":beam-runners-google-cloud-dataflow-java-fn-api-worker")

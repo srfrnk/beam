@@ -85,8 +85,8 @@ import org.apache.beam.sdk.values.KV;
 import org.apache.beam.sdk.values.PCollectionView;
 import org.apache.beam.sdk.values.TupleTag;
 import org.apache.beam.sdk.values.WindowingStrategy;
-import org.apache.beam.vendor.grpc.v1_13_1.com.google.protobuf.ByteString;
-import org.apache.beam.vendor.grpc.v1_13_1.com.google.protobuf.InvalidProtocolBufferException;
+import org.apache.beam.vendor.grpc.v1p13p1.com.google.protobuf.ByteString;
+import org.apache.beam.vendor.grpc.v1p13p1.com.google.protobuf.InvalidProtocolBufferException;
 
 /**
  * Converts a {@link Network} representation of {@link MapTask} destined for the SDK harness into an
@@ -290,7 +290,7 @@ public class RegisterNodeFunction implements Function<MutableNetwork<Node, Edge>
         CloudObject userFnSpec = CloudObject.fromSpec(parDoInstruction.getUserFn());
         String userFnClassName = userFnSpec.getClassName();
 
-        if (userFnClassName.equals("CombineValuesFn") || userFnClassName.equals("KeyedCombineFn")) {
+        if ("CombineValuesFn".equals(userFnClassName) || "KeyedCombineFn".equals(userFnClassName)) {
           transformSpec = transformCombineValuesFnToFunctionSpec(userFnSpec);
           ptransformIdToPCollectionViews.put(ptransformId, Collections.emptyList());
         } else {

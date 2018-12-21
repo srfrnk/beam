@@ -17,7 +17,10 @@
  */
 package org.apache.beam.runners.flink;
 
+import static org.apache.flink.streaming.api.environment.StreamExecutionEnvironment.getDefaultLocalParallelism;
+
 import com.google.common.annotations.VisibleForTesting;
+import com.google.common.net.HostAndPort;
 import java.net.URL;
 import java.util.Collections;
 import java.util.List;
@@ -77,26 +80,16 @@ public class FlinkExecutionEnvironments {
     } else if ("[auto]".equals(masterUrl)) {
       flinkBatchEnv = ExecutionEnvironment.getExecutionEnvironment();
     } else {
-      String[] hostAndPort = masterUrl.split(":", 2);
-      final String host = hostAndPort[0];
-      final int port;
-      if (hostAndPort.length > 1) {
-        try {
-          port = Integer.parseInt(hostAndPort[1]);
-        } catch (NumberFormatException e) {
-          throw new IllegalArgumentException("Provided port is malformed: " + hostAndPort[1]);
-        }
-        flinkConfiguration.setInteger(RestOptions.PORT, port);
-      } else {
-        port = flinkConfiguration.getInteger(RestOptions.PORT);
-      }
+      int defaultPort = flinkConfiguration.getInteger(RestOptions.PORT);
+      HostAndPort hostAndPort = HostAndPort.fromString(masterUrl).withDefaultPort(defaultPort);
+      flinkConfiguration.setInteger(RestOptions.PORT, hostAndPort.getPort());
       flinkBatchEnv =
           ExecutionEnvironment.createRemoteEnvironment(
-              host,
-              port,
+              hostAndPort.getHost(),
+              hostAndPort.getPort(),
               flinkConfiguration,
               filesToStage.toArray(new String[filesToStage.size()]));
-      LOG.info("Using Flink Master URL {}:{}.", host, port);
+      LOG.info("Using Flink Master URL {}:{}.", hostAndPort.getHost(), hostAndPort.getPort());
     }
 
     // Set the execution more for data exchange.
@@ -153,23 +146,15 @@ public class FlinkExecutionEnvironments {
 
     // depending on the master, create the right environment.
     if ("[local]".equals(masterUrl)) {
-      flinkStreamEnv = StreamExecutionEnvironment.createLocalEnvironment();
+      flinkStreamEnv =
+          StreamExecutionEnvironment.createLocalEnvironment(
+              getDefaultLocalParallelism(), flinkConfig);
     } else if ("[auto]".equals(masterUrl)) {
       flinkStreamEnv = StreamExecutionEnvironment.getExecutionEnvironment();
     } else {
-      String[] hostAndPort = masterUrl.split(":", 2);
-      final String host = hostAndPort[0];
-      final int port;
-      if (hostAndPort.length > 1) {
-        try {
-          port = Integer.parseInt(hostAndPort[1]);
-        } catch (NumberFormatException e) {
-          throw new IllegalArgumentException("Provided port is malformed: " + hostAndPort[1]);
-        }
-        flinkConfig.setInteger(RestOptions.PORT, port);
-      } else {
-        port = flinkConfig.getInteger(RestOptions.PORT);
-      }
+      int defaultPort = flinkConfig.getInteger(RestOptions.PORT);
+      HostAndPort hostAndPort = HostAndPort.fromString(masterUrl).withDefaultPort(defaultPort);
+      flinkConfig.setInteger(RestOptions.PORT, hostAndPort.getPort());
       final SavepointRestoreSettings savepointRestoreSettings;
       if (options.getSavepointPath() != null) {
         savepointRestoreSettings =
@@ -180,12 +165,12 @@ public class FlinkExecutionEnvironments {
       }
       flinkStreamEnv =
           new BeamFlinkRemoteStreamEnvironment(
-              host,
-              port,
+              hostAndPort.getHost(),
+              hostAndPort.getPort(),
               flinkConfig,
               savepointRestoreSettings,
               filesToStage.toArray(new String[filesToStage.size()]));
-      LOG.info("Using Flink Master URL {}:{}.", host, port);
+      LOG.info("Using Flink Master URL {}:{}.", hostAndPort.getHost(), hostAndPort.getPort());
     }
 
     // Set the parallelism, required by UnboundedSourceWrapper to generate consistent splits.
