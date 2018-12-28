@@ -28,8 +28,10 @@ import com.datastax.driver.core.Row;
 import com.datastax.driver.core.Session;
 import com.datastax.driver.core.policies.DCAwareRoundRobinPolicy;
 import com.datastax.driver.core.policies.TokenAwarePolicy;
+import com.datastax.driver.core.querybuilder.Clause;
 import com.datastax.driver.core.querybuilder.QueryBuilder;
 import com.datastax.driver.mapping.Mapper;
+import com.datastax.driver.core.querybuilder.Select;
 import com.datastax.driver.mapping.MappingManager;
 import com.google.common.annotations.VisibleForTesting;
 import com.google.common.base.Joiner;
@@ -261,18 +263,29 @@ public class CassandraServiceImpl<T> implements CassandraService<T> {
   private static String generateRangeQuery(
     String keyspace,
     String table,
-    String where,
+    Clause where,
     String partitionKey,
     BigInteger rangeStart,
     BigInteger rangeEnd)
   {
-          String query = String.format("SELECT * FROM %s.%s WHERE %s;", keyspace, table,
-          Joiner.on(" AND ").skipNulls().join(
-            String.format("(%s)", where),
-            rangeStart==null?null:String.format("(token(%s)>=%d)", partitionKey, rangeStart),
-            rangeEnd==null?null:String.format("(token(%s)<%d)", partitionKey, rangeEnd)));
-      LOG.debug("Cassandra generated read query : {}", query);
-      return query;
+    Select.Where builder = QueryBuilder.select().from(keyspace,table).where();
+    if(where!=null) {
+      builder = builder.and(where);
+    }
+
+    String token=String.format("token(%s)",partitionKey);
+
+    if(rangeStart!=null) {
+      builder = builder.and(QueryBuilder.gte(token, rangeStart));
+    }
+
+    if(rangeEnd!=null) {
+      builder = builder.and(QueryBuilder.lt(token, rangeEnd));
+    }
+
+    String query = builder.toString();
+    LOG.debug("Cassandra generated read query : {}", query);
+    return query;
   }
 
   private static long getNumSplits(
