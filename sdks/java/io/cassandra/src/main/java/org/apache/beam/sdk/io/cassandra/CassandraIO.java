@@ -135,7 +135,7 @@ public class CassandraIO {
     abstract Class<T> entity();
 
     @Nullable
-    abstract String where();
+    abstract Clause where();
 
     @Nullable
     abstract Coder<T> coder();
@@ -212,7 +212,7 @@ public class CassandraIO {
     }
 
     /** Specify the Cassandra table where to read data. */
-    public Read<T> withWhere(String where) {
+    public Read<T> withWhere(Clause where) {
       return builder().setWhere(where).build();
     }
 
@@ -373,7 +373,7 @@ public class CassandraIO {
 
       abstract Builder<T> setTable(ValueProvider<String> table);
 
-      abstract Builder<T> setWhere(String where);
+      abstract Builder<T> setWhere(Clause where);
 
       abstract Builder<T> setEntity(Class<T> entity);
 
