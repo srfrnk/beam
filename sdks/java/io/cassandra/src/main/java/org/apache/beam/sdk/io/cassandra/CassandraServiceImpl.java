@@ -30,11 +30,10 @@ import com.datastax.driver.core.policies.DCAwareRoundRobinPolicy;
 import com.datastax.driver.core.policies.TokenAwarePolicy;
 import com.datastax.driver.core.querybuilder.Clause;
 import com.datastax.driver.core.querybuilder.QueryBuilder;
-import com.datastax.driver.mapping.Mapper;
 import com.datastax.driver.core.querybuilder.Select;
+import com.datastax.driver.mapping.Mapper;
 import com.datastax.driver.mapping.MappingManager;
 import com.google.common.annotations.VisibleForTesting;
-import com.google.common.base.Joiner;
 import com.google.common.collect.Iterators;
 import com.google.common.util.concurrent.ListenableFuture;
 import java.math.BigInteger;
@@ -248,11 +247,27 @@ public class CassandraServiceImpl<T> implements CassandraService<T> {
           // the partitioner range, and the other from the start of the partitioner range
           // to the
           // end token of the split.
-          queries.add(generateRangeQuery(spec.keyspace(),spec.table(),spec.where(),partitionKey,range.getStart(),null));
+          queries.add(
+              generateRangeQuery(
+                  spec.keyspace(),
+                  spec.table(),
+                  spec.where(),
+                  partitionKey,
+                  range.getStart(),
+                  null));
           // Generation of the second query of the wrapping range
-          queries.add(generateRangeQuery(spec.keyspace(),spec.table(),spec.where(),partitionKey,null,range.getEnd()));
+          queries.add(
+              generateRangeQuery(
+                  spec.keyspace(), spec.table(), spec.where(), partitionKey, null, range.getEnd()));
         } else {
-          queries.add(generateRangeQuery(spec.keyspace(),spec.table(),spec.where(),partitionKey,range.getStart(),range.getEnd()));
+          queries.add(
+              generateRangeQuery(
+                  spec.keyspace(),
+                  spec.table(),
+                  spec.where(),
+                  partitionKey,
+                  range.getStart(),
+                  range.getEnd()));
         }
       }
       sources.add(new CassandraIO.CassandraSource<>(spec, queries));
@@ -261,25 +276,24 @@ public class CassandraServiceImpl<T> implements CassandraService<T> {
   }
 
   private static String generateRangeQuery(
-    String keyspace,
-    String table,
-    Clause where,
-    String partitionKey,
-    BigInteger rangeStart,
-    BigInteger rangeEnd)
-  {
-    Select.Where builder = QueryBuilder.select().from(keyspace,table).where();
-    if(where!=null) {
+      String keyspace,
+      String table,
+      Clause where,
+      String partitionKey,
+      BigInteger rangeStart,
+      BigInteger rangeEnd) {
+    Select.Where builder = QueryBuilder.select().from(keyspace, table).where();
+    if (where != null) {
       builder = builder.and(where);
     }
 
-    String token=String.format("token(%s)",partitionKey);
+    String token = String.format("token(%s)", partitionKey);
 
-    if(rangeStart!=null) {
+    if (rangeStart != null) {
       builder = builder.and(QueryBuilder.gte(token, rangeStart));
     }
 
-    if(rangeEnd!=null) {
+    if (rangeEnd != null) {
       builder = builder.and(QueryBuilder.lt(token, rangeEnd));
     }
 
@@ -357,7 +371,8 @@ public class CassandraServiceImpl<T> implements CassandraService<T> {
       // if the data was just inserted and the amount of data in the table was small.
       // This is very common situation during tests,
       // when we insert a few rows and immediately query them.
-      // However, for tiny data sets the lack of size estimates is not a problem at all,
+      // However, for tiny data sets the lack of size estimates is not a problem at
+      // all,
       // because we don't want to split tiny data anyways.
       // Therefore, we're not issuing a warning if the result set was empty
       // or mean_partition_size and partitions_count = 0.
@@ -475,7 +490,8 @@ public class CassandraServiceImpl<T> implements CassandraService<T> {
       this.mutateFutures.add(mutator.apply(mapper, entity));
       if (this.mutateFutures.size() == CONCURRENT_ASYNC_QUERIES) {
         // We reached the max number of allowed in flight queries.
-        // Write methods are synchronous in Beam as stated by the CassandraService interface,
+        // Write methods are synchronous in Beam as stated by the CassandraService
+        // interface,
         // so we wait for each async query to return before exiting.
         LOG.debug(
             "Waiting for a batch of {} Cassandra {} to be executed...",
@@ -488,7 +504,8 @@ public class CassandraServiceImpl<T> implements CassandraService<T> {
 
     public void close() throws ExecutionException, InterruptedException {
       if (this.mutateFutures.size() > 0) {
-        // Waiting for the last in flight async queries to return before finishing the bundle.
+        // Waiting for the last in flight async queries to return before finishing the
+        // bundle.
         waitForFuturesToFinish();
       }
 
