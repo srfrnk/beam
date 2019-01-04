@@ -35,12 +35,17 @@ configurations.testRuntimeClasspath {
   exclude group: "org.slf4j", module: "slf4j-jdk14"
 }
 
+repositories {
+  maven { url "https://jitpack.io" }
+}
+
 dependencies {
   shadow library.java.vendored_guava_20_0
   shadow project(path: ":beam-sdks-java-core", configuration: "shadow")
   shadow library.java.slf4j_api
-  shadow library.java.cassandra_driver_core
-  shadow library.java.cassandra_driver_mapping
+  // shadow "com.datastax.cassandra:cassandra-driver-core:$cassandra_version"
+  implementation 'com.github.srfrnk:java-driver:sf-v-1.0'
+  shadow "com.datastax.cassandra:cassandra-driver-mapping:$cassandra_version"
   testCompile project(path: ":beam-runners-direct-java", configuration: "shadow")
   testCompile project(path: ":beam-sdks-java-io-common", configuration: "shadowTest")
   testCompile library.java.junit
