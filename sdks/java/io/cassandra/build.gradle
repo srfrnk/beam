@@ -26,6 +26,8 @@ applyJavaNature(shadowClosure: DEFAULT_SHADOW_CLOSURE << {
 provideIntegrationTestingDependencies()
 enableJavaPerformanceTesting()
 
+apply plugin: 'maven'
+
 description = "Apache Beam :: SDKs :: Java :: IO :: Cassandra"
 ext.summary = "IO to read and write with Apache Cassandra database"
 
