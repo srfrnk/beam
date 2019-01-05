@@ -39,7 +39,7 @@ configurations.testRuntimeClasspath {
 
 repositories {
   ivy {
-      artifactPattern "https://github.com/[organization]/[module]/raw/[revision]/[classifier]/target/[ext]"
+    artifactPattern "https://github.com/[organization]/[module]/raw/[revision]/[classifier]"
   }
 }
 
@@ -48,7 +48,7 @@ dependencies {
   shadow project(path: ":beam-sdks-java-core", configuration: "shadow")
   shadow library.java.slf4j_api
   // shadow "com.datastax.cassandra:cassandra-driver-core:$cassandra_version"
-  compile "srfrnk:java-driver:sf-v-1-0:driver-core@cassandra-driver-core-3.6.1-SNAPSHOT-shaded.jar"
+  compile "srfrnk:java-driver:sf-v-1-0:driver-core/target/cassandra-driver-core-3.6.1-SNAPSHOT-shaded.jar"
   shadow "com.datastax.cassandra:cassandra-driver-mapping:$cassandra_version"
   testCompile project(path: ":beam-runners-direct-java", configuration: "shadow")
   testCompile project(path: ":beam-sdks-java-io-common", configuration: "shadowTest")
