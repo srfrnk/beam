@@ -39,7 +39,7 @@ dependencies {
   shadow project(path: ":beam-sdks-java-core", configuration: "shadow")
   // shadow library.java.slf4j_api
   // shadow "com.datastax.cassandra:cassandra-driver-core:$cassandra_version"
-  shadow "srfrnk:java-driver:master:driver-core/target/cassandra-driver-core-3.6.1-SNAPSHOT-shaded.jar"
+  shadow "srfrnk:java-driver:master:driver-core/target/cassandra-driver-core-3.6.1-SNAPSHOT.jar"
   // shadow "srfrnk:java-driver:sf-v-1-0:driver-core/target/cassandra-driver-core-3.6.1-SNAPSHOT-shaded.jar"
   // shadow files("../../../../../cassandra-java-driver/driver-core/target/cassandra-driver-core-3.6.1-SNAPSHOT-shaded.jar")
 
