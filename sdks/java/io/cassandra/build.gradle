@@ -48,8 +48,14 @@ dependencies {
   shadow project(path: ":beam-sdks-java-core", configuration: "shadow")
   shadow library.java.slf4j_api
   // shadow "com.datastax.cassandra:cassandra-driver-core:$cassandra_version"
-  compile "srfrnk:java-driver:sf-v-1-0:driver-core/target/cassandra-driver-core-3.6.1-SNAPSHOT-shaded.jar"
-  shadow "com.datastax.cassandra:cassandra-driver-mapping:$cassandra_version"
+  shadow "srfrnk:java-driver:master:driver-core/target/cassandra-driver-core-3.6.1-SNAPSHOT-shaded.jar"
+  // shadow "srfrnk:java-driver:sf-v-1-0:driver-core/target/cassandra-driver-core-3.6.1-SNAPSHOT-shaded.jar"
+  // shadow files("../../../../../cassandra-java-driver/driver-core/target/cassandra-driver-core-3.6.1-SNAPSHOT-shaded.jar")
+
+  // shadow "com.datastax.cassandra:cassandra-driver-mapping:$cassandra_version"
+  shadow "srfrnk:java-driver:master:driver-mapping/target/cassandra-driver-mapping-3.6.1-SNAPSHOT.jar"
+  // shadow files("../../../../../cassandra-java-driver/driver-mapping/target/cassandra-driver-mapping-3.6.1-SNAPSHOT.jar")
+
   testCompile project(path: ":beam-runners-direct-java", configuration: "shadow")
   testCompile project(path: ":beam-sdks-java-io-common", configuration: "shadowTest")
   testCompile library.java.junit
