@@ -36,6 +36,8 @@ import com.datastax.driver.mapping.MappingManager;
 import com.google.common.annotations.VisibleForTesting;
 import com.google.common.collect.Iterators;
 import com.google.common.util.concurrent.ListenableFuture;
+import com.google.common.util.concurrent.ListeningExecutorService;
+import com.google.common.util.concurrent.MoreExecutors;
 import java.math.BigInteger;
 import java.util.ArrayList;
 import java.util.Collections;
@@ -43,6 +45,7 @@ import java.util.Iterator;
 import java.util.List;
 import java.util.NoSuchElementException;
 import java.util.concurrent.ExecutionException;
+import java.util.concurrent.Executors;
 import java.util.function.BiFunction;
 import java.util.stream.Collectors;
 import javax.annotation.Nullable;
@@ -54,6 +57,8 @@ import org.slf4j.LoggerFactory;
 public class CassandraServiceImpl<T> implements CassandraService<T> {
   private static final Logger LOG = LoggerFactory.getLogger(CassandraServiceImpl.class);
   private static final String MURMUR3PARTITIONER = "org.apache.cassandra.dht.Murmur3Partitioner";
+
+  private static final int CONCURRENT_ASYNC_QUERIES = 100;
 
   private class CassandraReaderImpl extends BoundedSource.BoundedReader<T> {
     private final CassandraIO.CassandraSource<T> source;
@@ -69,6 +74,7 @@ public class CassandraServiceImpl<T> implements CassandraService<T> {
     @Override
     public boolean start() {
       LOG.debug("Starting Cassandra reader");
+
       cluster =
           getCluster(
               source.spec.hosts(),
@@ -431,14 +437,38 @@ public class CassandraServiceImpl<T> implements CassandraService<T> {
 
   /** Writer storing an entity into Apache Cassandra database. */
   class WriterImpl extends MutatorImpl implements Writer<T> {
+    private final ListeningExecutorService listeningExecutorService;
 
-    WriterImpl(CassandraIO.Mutate<T> spec) {
-      super(spec, Mapper::saveAsync, "writes");
+    WriterImpl(CassandraIO.Mutate<T> spec, ListeningExecutorService listeningExecutorService) {
+      super(
+          spec,
+          (mapper, entity) -> {
+            ListenableFuture<Void> future =
+                listeningExecutorService.submit(
+                    () -> {
+                      try {
+                        mapper.save(entity);
+                        return null;
+                      } catch (Exception e) {
+                        LOG.error("Mapper::save failed", e);
+                        throw e;
+                      }
+                    });
+            return future;
+          },
+          "writes");
+      this.listeningExecutorService = listeningExecutorService;
     }
 
     @Override
     public void write(T entity) throws ExecutionException, InterruptedException {
       mutate(entity);
+    }
+
+    @Override
+    public void close() throws ExecutionException, InterruptedException {
+      super.close();
+      listeningExecutorService.shutdown();
     }
   }
 
@@ -448,8 +478,6 @@ public class CassandraServiceImpl<T> implements CassandraService<T> {
      * The threshold of 100 concurrent async queries is a heuristic commonly used by the Apache
      * Cassandra community. There is no real gain to expect in tuning this value.
      */
-    private static final int CONCURRENT_ASYNC_QUERIES = 100;
-
     private final CassandraIO.Mutate<T> spec;
 
     private final Cluster cluster;
@@ -526,7 +554,9 @@ public class CassandraServiceImpl<T> implements CassandraService<T> {
 
   @Override
   public Writer<T> createWriter(CassandraIO.Mutate<T> spec) {
-    return new WriterImpl(spec);
+    return new WriterImpl(
+        spec,
+        MoreExecutors.listeningDecorator(Executors.newFixedThreadPool(CONCURRENT_ASYNC_QUERIES)));
   }
 
   /** Deleter storing an entity into Apache Cassandra database. */
