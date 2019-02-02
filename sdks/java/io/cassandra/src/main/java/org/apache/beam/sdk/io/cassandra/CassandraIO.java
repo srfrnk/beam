@@ -30,6 +30,7 @@ import org.apache.beam.sdk.annotations.Experimental;
 import org.apache.beam.sdk.coders.Coder;
 import org.apache.beam.sdk.io.BoundedSource;
 import org.apache.beam.sdk.options.PipelineOptions;
+import org.apache.beam.sdk.transforms.Create;
 import org.apache.beam.sdk.transforms.DoFn;
 import org.apache.beam.sdk.transforms.PTransform;
 import org.apache.beam.sdk.transforms.ParDo;
@@ -248,7 +249,34 @@ public class CassandraIO {
       checkArgument(entity() != null, "withEntity() is required");
       checkArgument(coder() != null, "withCoder() is required");
 
-      return input.apply(org.apache.beam.sdk.io.Read.from(new CassandraSource<>(this, null)));
+      return input
+          .apply("Initiate", Create.of((Void) null))
+          .apply(
+              "Create query splits",
+              ParDo.of(
+                  new SplitReadFn(
+                      hosts(),
+                      port(),
+                      username(),
+                      password(),
+                      localDc(),
+                      consistencyLevel(),
+                      keyspace(),
+                      table(),
+                      where())))
+          .apply(
+              "Read Casandra",
+              ParDo.of(
+                  new ReadFn<T>(
+                      hosts(),
+                      port(),
+                      username(),
+                      password(),
+                      localDc(),
+                      consistencyLevel(),
+                      keyspace(),
+                      entity())))
+          .setCoder(coder());
     }
 
     @AutoValue.Builder
@@ -325,6 +353,7 @@ public class CassandraIO {
       }
       builder.addIfNotNull(DisplayData.item("keyspace", spec.keyspace()));
       builder.addIfNotNull(DisplayData.item("table", spec.table()));
+      builder.addIfNotNull(DisplayData.item("where", spec.where().toString()));
       builder.addIfNotNull(DisplayData.item("username", spec.username()));
       builder.addIfNotNull(DisplayData.item("localDc", spec.localDc()));
       builder.addIfNotNull(DisplayData.item("consistencyLevel", spec.consistencyLevel()));
