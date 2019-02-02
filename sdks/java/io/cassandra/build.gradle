@@ -45,6 +45,8 @@ repositories {
 
 dependencies {
   compile library.java.guava
+  compile group: 'com.codahale.metrics', name: 'metrics-core', version: '3.0.2'
+
   shadow project(path: ":beam-sdks-java-core", configuration: "shadow")
   // shadow library.java.slf4j_api
   // shadow "com.datastax.cassandra:cassandra-driver-core:$cassandra_version"
