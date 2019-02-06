@@ -20,7 +20,6 @@ package org.apache.beam.sdk.io.cassandra;
 import static com.google.common.base.Preconditions.checkArgument;
 import static com.google.common.base.Preconditions.checkState;
 
-import com.datastax.driver.core.querybuilder.Clause;
 import com.google.auto.value.AutoValue;
 import com.google.common.base.Joiner;
 import com.google.common.util.concurrent.ListenableFuture;
@@ -139,7 +138,7 @@ public class CassandraIO {
     abstract Class<T> entity();
 
     @Nullable
-    abstract Clause where();
+    abstract String where();
 
     @Nullable
     abstract Coder<T> coder();
@@ -216,7 +215,7 @@ public class CassandraIO {
     }
 
     /** Specify the Cassandra table where to read data. */
-    public Read<T> withWhere(Clause where) {
+    public Read<T> withWhere(String where) {
       return builder().setWhere(where).build();
     }
 
@@ -404,7 +403,7 @@ public class CassandraIO {
 
       abstract Builder<T> setTable(ValueProvider<String> table);
 
-      abstract Builder<T> setWhere(Clause where);
+      abstract Builder<T> setWhere(String where);
 
       abstract Builder<T> setEntity(Class<T> entity);
 

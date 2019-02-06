@@ -20,9 +20,7 @@ package org.apache.beam.sdk.io.cassandra;
 import com.datastax.driver.core.Cluster;
 import com.datastax.driver.core.ColumnMetadata;
 import com.datastax.driver.core.Session;
-import com.datastax.driver.core.querybuilder.Clause;
-import com.datastax.driver.core.querybuilder.QueryBuilder;
-import com.datastax.driver.core.querybuilder.Select;
+import com.google.common.base.Joiner;
 import java.math.BigInteger;
 import java.util.List;
 import java.util.stream.Collectors;
@@ -44,7 +42,7 @@ class SplitReadFn extends DoFn<Void, String> {
   private final String consistencyLevel;
   private final String keyspace;
   private final String table;
-  private final Clause where;
+  private final String where;
 
   public SplitReadFn(
       List<String> hosts,
@@ -55,7 +53,7 @@ class SplitReadFn extends DoFn<Void, String> {
       String consistencyLevel,
       String keyspace,
       String table,
-      Clause where) {
+      String where) {
     this.hosts = hosts;
     this.port = port;
     this.username = username;
@@ -151,26 +149,27 @@ class SplitReadFn extends DoFn<Void, String> {
   private static String generateQuery(
       String keyspace,
       String table,
-      Clause where,
+      String where,
       String partitionKey,
       BigInteger rangeStart,
       BigInteger rangeEnd) {
-    Select.Where builder = QueryBuilder.select().from(keyspace, table).where();
-    if (where != null) {
-      builder = builder.and(where);
-    }
 
-    String token = String.format("token(%s)", partitionKey);
+    String query =
+        String.format(
+            "SELECT * FROM %s.%s WHERE %s;",
+            keyspace,
+            table,
+            Joiner.on(" AND ")
+                .skipNulls()
+                .join(
+                    where == null ? null : String.format("(%s)", where),
+                    rangeStart == null
+                        ? null
+                        : String.format("(token(%s)>=%d)", partitionKey, rangeStart),
+                    rangeEnd == null
+                        ? null
+                        : String.format("(token(%s)<%d)", partitionKey, rangeEnd)));
 
-    if (rangeStart != null) {
-      builder = builder.and(QueryBuilder.gte(token, rangeStart));
-    }
-
-    if (rangeEnd != null) {
-      builder = builder.and(QueryBuilder.lt(token, rangeEnd));
-    }
-
-    String query = builder.toString();
     LOG.debug("Cassandra generated read query : {}", query);
     return query;
   }
