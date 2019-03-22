@@ -35,6 +35,14 @@ configurations.testRuntimeClasspath {
   exclude group: "org.slf4j", module: "slf4j-jdk14"
 }
 
+sourceSets {
+  main {
+    java {
+      srcDir "build/generated/sources/annotationProcessor/java/main" // Support AutoValue in intellisense
+    }
+  }
+}
+
 dependencies {
   shadow library.java.vendored_guava_20_0
   shadow project(path: ":beam-sdks-java-core", configuration: "shadow")
