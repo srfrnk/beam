@@ -1,25 +1,21 @@
 /*
- * Licensed to the Apache Software Foundation (ASF) under one
- * or more contributor license agreements.  See the NOTICE file
- * distributed with this work for additional information
- * regarding copyright ownership.  The ASF licenses this file
- * to you under the Apache License, Version 2.0 (the
- * "License"); you may not use this file except in compliance
- * with the License.  You may obtain a copy of the License at
+ * Licensed to the Apache Software Foundation (ASF) under one or more contributor license
+ * agreements. See the NOTICE file distributed with this work for additional information regarding
+ * copyright ownership. The ASF licenses this file to you under the Apache License, Version 2.0 (the
+ * "License"); you may not use this file except in compliance with the License. You may obtain a
+ * copy of the License at
  *
- *     http://www.apache.org/licenses/LICENSE-2.0
+ * http://www.apache.org/licenses/LICENSE-2.0
  *
- * Unless required by applicable law or agreed to in writing, software
- * distributed under the License is distributed on an "AS IS" BASIS,
- * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
- * See the License for the specific language governing permissions and
- * limitations under the License.
+ * Unless required by applicable law or agreed to in writing, software distributed under the License
+ * is distributed on an "AS IS" BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express
+ * or implied. See the License for the specific language governing permissions and limitations under
+ * the License.
  */
 package org.apache.beam.sdk.io.cassandra;
 
 import static org.apache.beam.vendor.guava.v20_0.com.google.common.base.Preconditions.checkArgument;
 import static org.apache.beam.vendor.guava.v20_0.com.google.common.base.Preconditions.checkState;
-
 import com.datastax.driver.core.Cluster;
 import com.datastax.driver.core.ColumnMetadata;
 import com.datastax.driver.core.ConsistencyLevel;
@@ -34,7 +30,6 @@ import com.datastax.driver.core.policies.TokenAwarePolicy;
 import com.datastax.driver.mapping.Mapper;
 import com.datastax.driver.mapping.MappingManager;
 import com.google.auto.value.AutoValue;
-import com.google.common.base.Joiner;
 import com.google.common.util.concurrent.ListenableFuture;
 import java.math.BigInteger;
 import java.util.ArrayList;
@@ -51,6 +46,7 @@ import org.apache.beam.sdk.coders.Coder;
 import org.apache.beam.sdk.io.BoundedSource;
 import org.apache.beam.sdk.options.PipelineOptions;
 import org.apache.beam.sdk.options.ValueProvider;
+import org.apache.beam.sdk.transforms.Create;
 import org.apache.beam.sdk.transforms.DoFn;
 import org.apache.beam.sdk.transforms.PTransform;
 import org.apache.beam.sdk.transforms.ParDo;
@@ -59,6 +55,7 @@ import org.apache.beam.sdk.values.PBegin;
 import org.apache.beam.sdk.values.PCollection;
 import org.apache.beam.sdk.values.PDone;
 import org.apache.beam.vendor.guava.v20_0.com.google.common.annotations.VisibleForTesting;
+import org.apache.beam.vendor.guava.v20_0.com.google.common.base.Joiner;
 import org.apache.beam.vendor.guava.v20_0.com.google.common.collect.Iterators;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
@@ -68,14 +65,17 @@ import org.slf4j.LoggerFactory;
  *
  * <h3>Reading from Apache Cassandra</h3>
  *
- * <p>{@code CassandraIO} provides a source to read and returns a bounded collection of entities as
+ * <p>
+ * {@code CassandraIO} provides a source to read and returns a bounded collection of entities as
  * {@code PCollection<Entity>}. An entity is built by Cassandra mapper ({@code
  * com.datastax.driver.mapping.EntityMapper}) based on a POJO containing annotations (as described
  * http://docs.datastax .com/en/developer/java-driver/2.1/manual/object_mapper/creating/").
  *
- * <p>The following example illustrates various options for configuring the IO:
+ * <p>
+ * The following example illustrates various options for configuring the IO:
  *
- * <pre>{@code
+ * <pre>
+ * {@code
  * pipeline.apply(CassandraIO.<Person>read()
  *     .withHosts(Arrays.asList("host1", "host2"))
  *     .withPort(9042)
@@ -85,15 +85,19 @@ import org.slf4j.LoggerFactory;
  *     .withCoder(SerializableCoder.of(Person.class))
  *     // above options are the minimum set, returns PCollection<Person>
  *
- * }</pre>
+ * }
+ * </pre>
  *
  * <h3>Writing to Apache Cassandra</h3>
  *
- * <p>{@code CassandraIO} provides a sink to write a collection of entities to Apache Cassandra.
+ * <p>
+ * {@code CassandraIO} provides a sink to write a collection of entities to Apache Cassandra.
  *
- * <p>The following example illustrates various options for configuring the IO write:
+ * <p>
+ * The following example illustrates various options for configuring the IO write:
  *
- * <pre>{@code
+ * <pre>
+ * {@code
  * pipeline
  *    .apply(...) // provides a PCollection<Person> where Person is an entity
  *    .apply(CassandraIO.<Person>write()
@@ -101,14 +105,16 @@ import org.slf4j.LoggerFactory;
  *        .withPort(9042)
  *        .withKeyspace("beam")
  *        .withEntity(Person.class));
- * }</pre>
+ * }
+ * </pre>
  */
 @Experimental(Experimental.Kind.SOURCE_SINK)
 public class CassandraIO {
 
   private static final Logger LOG = LoggerFactory.getLogger(CassandraIO.class);
 
-  private CassandraIO() {}
+  private CassandraIO() {
+  }
 
   /** Provide a {@link Read} {@link PTransform} to read data from a Cassandra database. */
   public static <T> Read<T> read() {
@@ -265,8 +271,7 @@ public class CassandraIO {
 
     public Read<T> withConsistencyLevel(String consistencyLevel) {
       checkArgument(consistencyLevel != null, "consistencyLevel can not be null");
-      return builder()
-          .setConsistencyLevel(ValueProvider.StaticValueProvider.of(consistencyLevel))
+      return builder().setConsistencyLevel(ValueProvider.StaticValueProvider.of(consistencyLevel))
           .build();
     }
 
@@ -279,13 +284,17 @@ public class CassandraIO {
      * the {@code Where} clause you may use. (e.g. filter on a primary/clustering column only etc.)
      *
      * @param where Partial {@code Where} clause. Optional - If unspecified will not filter the
-     *     data.
+     *              data.
      * @see <a href="http://cassandra.apache.org/doc/4.0/cql/dml.html#where-clause">CQL
-     *     Documentation</a>
+     *      Documentation</a>
      * @throws com.datastax.driver.core.exceptions.InvalidQueryException If {@code Where} clause
-     *     makes the generated query invalid. Please Consult <a
-     *     href="http://cassandra.apache.org/doc/4.0/cql/dml.html#where-clause">CQL
-     *     Documentation</a> for more info on correct usage of the {@code Where} clause.
+     *                                                                   makes the generated query
+     *                                                                   invalid. Please Consult
+     *                                                                   <a href=
+     *                                                                   "http://cassandra.apache.org/doc/4.0/cql/dml.html#where-clause">CQL
+     *                                                                   Documentation</a> for more
+     *                                                                   info on correct usage of
+     *                                                                   the {@code Where} clause.
      */
     public Read<T> withWhere(String where) {
       checkArgument(where != null, "where can not be null");
@@ -297,13 +306,17 @@ public class CassandraIO {
      * the {@code Where} clause you may use. (e.g. filter on a primary/clustering column only etc.)
      *
      * @param where Partial {@code Where} clause. Optional - If unspecified will not filter the
-     *     data.
+     *              data.
      * @see <a href="http://cassandra.apache.org/doc/4.0/cql/dml.html#where-clause">CQL
-     *     Documentation</a>
+     *      Documentation</a>
      * @throws com.datastax.driver.core.exceptions.InvalidQueryException If {@code Where} clause
-     *     makes the generated query invalid. Please Consult <a
-     *     href="http://cassandra.apache.org/doc/4.0/cql/dml.html#where-clause">CQL
-     *     Documentation</a> for more info on correct usage of the {@code Where} clause.
+     *                                                                   makes the generated query
+     *                                                                   invalid. Please Consult
+     *                                                                   <a href=
+     *                                                                   "http://cassandra.apache.org/doc/4.0/cql/dml.html#where-clause">CQL
+     *                                                                   Documentation</a> for more
+     *                                                                   info on correct usage of
+     *                                                                   the {@code Where} clause.
      */
     public Read<T> withWhere(ValueProvider<String> where) {
       return builder().setWhere(where).build();
@@ -317,8 +330,7 @@ public class CassandraIO {
     public Read<T> withMinNumberOfSplits(Integer minNumberOfSplits) {
       checkArgument(minNumberOfSplits != null, "minNumberOfSplits can not be null");
       checkArgument(minNumberOfSplits > 0, "minNumberOfSplits must be greater than 0");
-      return builder()
-          .setMinNumberOfSplits(ValueProvider.StaticValueProvider.of(minNumberOfSplits))
+      return builder().setMinNumberOfSplits(ValueProvider.StaticValueProvider.of(minNumberOfSplits))
           .build();
     }
 
@@ -339,7 +351,13 @@ public class CassandraIO {
       checkArgument(entity() != null, "withEntity() is required");
       checkArgument(coder() != null, "withCoder() is required");
 
-      return input.apply(org.apache.beam.sdk.io.Read.from(new CassandraSource<>(this, null)));
+      return input.apply("Initiate", Create.of((Void) null))
+          .apply("Create query splits",
+              ParDo.of(new SplitReadFn(hosts(), port(), username(), password(), localDc(),
+                  consistencyLevel(), keyspace(), table(), where())))
+          .apply("Read Casandra", ParDo.of(new ReadFn<T>(hosts(), port(), username(), password(),
+              localDc(), consistencyLevel(), keyspace(), entity())))
+          .setCoder(coder());
     }
 
     @AutoValue.Builder
@@ -394,29 +412,19 @@ public class CassandraIO {
     }
 
     @Override
-    public List<BoundedSource<T>> split(
-        long desiredBundleSizeBytes, PipelineOptions pipelineOptions) {
-      try (Cluster cluster =
-          getCluster(
-              spec.hosts(),
-              spec.port(),
-              spec.username(),
-              spec.password(),
-              spec.localDc(),
-              spec.consistencyLevel())) {
+    public List<BoundedSource<T>> split(long desiredBundleSizeBytes,
+        PipelineOptions pipelineOptions) {
+      try (Cluster cluster = getCluster(spec.hosts(), spec.port(), spec.username(), spec.password(),
+          spec.localDc(), spec.consistencyLevel())) {
         if (isMurmur3Partitioner(cluster)) {
           LOG.info("Murmur3Partitioner detected, splitting");
-          return splitWithTokenRanges(
-              spec, desiredBundleSizeBytes, getEstimatedSizeBytes(pipelineOptions), cluster);
+          return splitWithTokenRanges(spec, desiredBundleSizeBytes,
+              getEstimatedSizeBytes(pipelineOptions), cluster);
         } else {
-          LOG.warn(
-              "Only Murmur3Partitioner is supported for splitting, using an unique source for "
-                  + "the read");
+          LOG.warn("Only Murmur3Partitioner is supported for splitting, using an unique source for "
+              + "the read");
           String splitQuery =
-              String.format(
-                  "SELECT * FROM %s.%s%s;",
-                  spec.keyspace().get(),
-                  spec.table().get(),
+              String.format("SELECT * FROM %s.%s%s;", spec.keyspace().get(), spec.table().get(),
                   spec.where() != null ? "" : String.format(" WHERE %s", spec.where().get()));
           return Collections.singletonList(
               new CassandraIO.CassandraSource<>(spec, Collections.singletonList(splitQuery)));
@@ -428,28 +436,22 @@ public class CassandraIO {
      * Compute the number of splits based on the estimated size and the desired bundle size, and
      * create several sources.
      */
-    private List<BoundedSource<T>> splitWithTokenRanges(
-        CassandraIO.Read<T> spec,
-        long desiredBundleSizeBytes,
-        long estimatedSizeBytes,
-        Cluster cluster) {
+    private List<BoundedSource<T>> splitWithTokenRanges(CassandraIO.Read<T> spec,
+        long desiredBundleSizeBytes, long estimatedSizeBytes, Cluster cluster) {
       long numSplits =
           getNumSplits(desiredBundleSizeBytes, estimatedSizeBytes, spec.minNumberOfSplits());
       LOG.info("Number of desired splits is {}", numSplits);
 
       SplitGenerator splitGenerator = new SplitGenerator(cluster.getMetadata().getPartitioner());
-      List<BigInteger> tokens =
-          cluster.getMetadata().getTokenRanges().stream()
-              .map(tokenRange -> new BigInteger(tokenRange.getEnd().getValue().toString()))
-              .collect(Collectors.toList());
+      List<BigInteger> tokens = cluster.getMetadata().getTokenRanges().stream()
+          .map(tokenRange -> new BigInteger(tokenRange.getEnd().getValue().toString()))
+          .collect(Collectors.toList());
       List<List<RingRange>> splits = splitGenerator.generateSplits(numSplits, tokens);
       LOG.info("{} splits were actually generated", splits.size());
 
-      final String partitionKey =
-          cluster.getMetadata().getKeyspace(spec.keyspace().get()).getTable(spec.table().get())
-              .getPartitionKey().stream()
-              .map(ColumnMetadata::getName)
-              .collect(Collectors.joining(","));
+      final String partitionKey = cluster.getMetadata().getKeyspace(spec.keyspace().get())
+          .getTable(spec.table().get()).getPartitionKey().stream().map(ColumnMetadata::getName)
+          .collect(Collectors.joining(","));
 
       List<BoundedSource<T>> sources = new ArrayList<>();
       for (List<RingRange> split : splits) {
@@ -462,32 +464,14 @@ public class CassandraIO {
             // of
             // the partitioner range, and the other from the start of the partitioner range to the
             // end token of the split.
-            queries.add(
-                generateRangeQuery(
-                    spec.keyspace(),
-                    spec.table(),
-                    spec.where(),
-                    partitionKey,
-                    range.getStart(),
-                    null));
+            queries.add(generateRangeQuery(spec.keyspace(), spec.table(), spec.where(),
+                partitionKey, range.getStart(), null));
             // Generation of the second query of the wrapping range
-            queries.add(
-                generateRangeQuery(
-                    spec.keyspace(),
-                    spec.table(),
-                    spec.where(),
-                    partitionKey,
-                    null,
-                    range.getEnd()));
+            queries.add(generateRangeQuery(spec.keyspace(), spec.table(), spec.where(),
+                partitionKey, null, range.getEnd()));
           } else {
-            queries.add(
-                generateRangeQuery(
-                    spec.keyspace(),
-                    spec.table(),
-                    spec.where(),
-                    partitionKey,
-                    range.getStart(),
-                    range.getEnd()));
+            queries.add(generateRangeQuery(spec.keyspace(), spec.table(), spec.where(),
+                partitionKey, range.getStart(), range.getEnd()));
           }
         }
         sources.add(new CassandraIO.CassandraSource<>(spec, queries));
@@ -495,35 +479,20 @@ public class CassandraIO {
       return sources;
     }
 
-    private static String generateRangeQuery(
-        ValueProvider<String> keyspace,
-        ValueProvider<String> table,
-        ValueProvider<String> where,
-        String partitionKey,
-        BigInteger rangeStart,
-        BigInteger rangeEnd) {
-      String query =
-          String.format(
-              "SELECT * FROM %s.%s WHERE %s;",
-              keyspace.get(),
-              table.get(),
-              Joiner.on(" AND ")
-                  .skipNulls()
-                  .join(
-                      where == null ? null : String.format("(%s)", where.get()),
-                      rangeStart == null
-                          ? null
-                          : String.format("(token(%s)>=%d)", partitionKey, rangeStart),
-                      rangeEnd == null
-                          ? null
-                          : String.format("(token(%s)<%d)", partitionKey, rangeEnd)));
+    private static String generateRangeQuery(ValueProvider<String> keyspace,
+        ValueProvider<String> table, ValueProvider<String> where, String partitionKey,
+        BigInteger rangeStart, BigInteger rangeEnd) {
+      String query = String.format("SELECT * FROM %s.%s WHERE %s;", keyspace.get(), table.get(),
+          Joiner.on(" AND ").skipNulls().join(
+              where == null ? null : String.format("(%s)", where.get()),
+              rangeStart == null ? null
+                  : String.format("(token(%s)>=%d)", partitionKey, rangeStart),
+              rangeEnd == null ? null : String.format("(token(%s)<%d)", partitionKey, rangeEnd)));
       LOG.debug("Cassandra generated read query : {}", query);
       return query;
     }
 
-    private static long getNumSplits(
-        long desiredBundleSizeBytes,
-        long estimatedSizeBytes,
+    private static long getNumSplits(long desiredBundleSizeBytes, long estimatedSizeBytes,
         @Nullable ValueProvider<Integer> minNumberOfSplits) {
       long numSplits =
           desiredBundleSizeBytes > 0 ? (estimatedSizeBytes / desiredBundleSizeBytes) : 1;
@@ -536,14 +505,8 @@ public class CassandraIO {
 
     @Override
     public long getEstimatedSizeBytes(PipelineOptions pipelineOptions) {
-      try (Cluster cluster =
-          getCluster(
-              spec.hosts(),
-              spec.port(),
-              spec.username(),
-              spec.password(),
-              spec.localDc(),
-              spec.consistencyLevel())) {
+      try (Cluster cluster = getCluster(spec.hosts(), spec.port(), spec.username(), spec.password(),
+          spec.localDc(), spec.consistencyLevel())) {
         if (isMurmur3Partitioner(cluster)) {
           try {
             List<TokenRange> tokenRanges =
@@ -580,6 +543,7 @@ public class CassandraIO {
       }
       builder.addIfNotNull(DisplayData.item("keyspace", spec.keyspace()));
       builder.addIfNotNull(DisplayData.item("table", spec.table()));
+      builder.addIfNotNull(DisplayData.item("where", spec.where().toString()));
       builder.addIfNotNull(DisplayData.item("username", spec.username()));
       builder.addIfNotNull(DisplayData.item("localDc", spec.localDc()));
       builder.addIfNotNull(DisplayData.item("consistencyLevel", spec.consistencyLevel()));
@@ -589,25 +553,21 @@ public class CassandraIO {
     /**
      * Gets the list of token ranges that a table occupies on a give Cassandra node.
      *
-     * <p>NB: This method is compatible with Cassandra 2.1.5 and greater.
+     * <p>
+     * NB: This method is compatible with Cassandra 2.1.5 and greater.
      */
     private static List<TokenRange> getTokenRanges(Cluster cluster, String keyspace, String table) {
       try (Session session = cluster.newSession()) {
-        ResultSet resultSet =
-            session.execute(
-                "SELECT range_start, range_end, partitions_count, mean_partition_size FROM "
-                    + "system.size_estimates WHERE keyspace_name = ? AND table_name = ?",
-                keyspace,
-                table);
+        ResultSet resultSet = session.execute(
+            "SELECT range_start, range_end, partitions_count, mean_partition_size FROM "
+                + "system.size_estimates WHERE keyspace_name = ? AND table_name = ?",
+            keyspace, table);
 
         ArrayList<TokenRange> tokenRanges = new ArrayList<>();
         for (Row row : resultSet) {
-          TokenRange tokenRange =
-              new TokenRange(
-                  row.getLong("partitions_count"),
-                  row.getLong("mean_partition_size"),
-                  new BigInteger(row.getString("range_start")),
-                  new BigInteger(row.getString("range_end")));
+          TokenRange tokenRange = new TokenRange(row.getLong("partitions_count"),
+              row.getLong("mean_partition_size"), new BigInteger(row.getString("range_start")),
+              new BigInteger(row.getString("range_end")));
           tokenRanges.add(tokenRange);
         }
         // The table may not contain the estimates yet
@@ -629,9 +589,8 @@ public class CassandraIO {
       double ringFraction = 0;
       for (TokenRange tokenRange : tokenRanges) {
         ringFraction =
-            ringFraction
-                + (distance(tokenRange.rangeStart, tokenRange.rangeEnd).doubleValue()
-                    / SplitGenerator.getRangeSize(MURMUR3PARTITIONER).doubleValue());
+            ringFraction + (distance(tokenRange.rangeStart, tokenRange.rangeEnd).doubleValue()
+                / SplitGenerator.getRangeSize(MURMUR3PARTITIONER).doubleValue());
       }
       return ringFraction;
     }
@@ -647,8 +606,7 @@ public class CassandraIO {
     /** Measure distance between two tokens. */
     @VisibleForTesting
     static BigInteger distance(BigInteger left, BigInteger right) {
-      return (right.compareTo(left) > 0)
-          ? right.subtract(left)
+      return (right.compareTo(left) > 0) ? right.subtract(left)
           : right.subtract(left).add(SplitGenerator.getRangeSize(MURMUR3PARTITIONER));
     }
 
@@ -663,8 +621,8 @@ public class CassandraIO {
       private final BigInteger rangeStart;
       private final BigInteger rangeEnd;
 
-      TokenRange(
-          long partitionCount, long meanPartitionSize, BigInteger rangeStart, BigInteger rangeEnd) {
+      TokenRange(long partitionCount, long meanPartitionSize, BigInteger rangeStart,
+          BigInteger rangeEnd) {
         this.partitionCount = partitionCount;
         this.meanPartitionSize = meanPartitionSize;
         this.rangeStart = rangeStart;
@@ -686,14 +644,8 @@ public class CassandraIO {
       @Override
       public boolean start() {
         LOG.debug("Starting Cassandra reader");
-        cluster =
-            getCluster(
-                source.spec.hosts(),
-                source.spec.port(),
-                source.spec.username(),
-                source.spec.password(),
-                source.spec.localDc(),
-                source.spec.consistencyLevel());
+        cluster = getCluster(source.spec.hosts(), source.spec.port(), source.spec.username(),
+            source.spec.password(), source.spec.localDc(), source.spec.consistencyLevel());
         session = cluster.connect(source.spec.keyspace().get());
         LOG.debug("Queries: " + source.splitQueries);
         List<ResultSetFuture> futures = new ArrayList<>();
@@ -754,8 +706,7 @@ public class CassandraIO {
 
   /** Specify the mutation type: either write or delete. */
   public enum MutationType {
-    WRITE,
-    DELETE
+    WRITE, DELETE
   }
 
   /**
@@ -798,38 +749,24 @@ public class CassandraIO {
 
     /** Specify the Cassandra instance hosts where to write data. */
     public Write<T> withHosts(List<String> hosts) {
-      checkArgument(
-          hosts != null,
+      checkArgument(hosts != null,
           "CassandraIO." + getMutationTypeName() + "().withHosts(hosts) called with null hosts");
-      checkArgument(
-          !hosts.isEmpty(),
-          "CassandraIO."
-              + getMutationTypeName()
-              + "().withHosts(hosts) called with empty "
-              + "hosts list");
+      checkArgument(!hosts.isEmpty(), "CassandraIO." + getMutationTypeName()
+          + "().withHosts(hosts) called with empty " + "hosts list");
       return builder().setHosts(hosts).build();
     }
 
     /** Specify the Cassandra instance port number where to write data. */
     public Write<T> withPort(int port) {
-      checkArgument(
-          port > 0,
-          "CassandraIO."
-              + getMutationTypeName()
-              + "().withPort(port) called with invalid port "
-              + "number (%s)",
-          port);
+      checkArgument(port > 0, "CassandraIO." + getMutationTypeName()
+          + "().withPort(port) called with invalid port " + "number (%s)", port);
       return builder().setPort(port).build();
     }
 
     /** Specify the Cassandra keyspace where to write data. */
     public Write<T> withKeyspace(String keyspace) {
-      checkArgument(
-          keyspace != null,
-          "CassandraIO."
-              + getMutationTypeName()
-              + "().withKeyspace(keyspace) called with "
-              + "null keyspace");
+      checkArgument(keyspace != null, "CassandraIO." + getMutationTypeName()
+          + "().withKeyspace(keyspace) called with " + "null keyspace");
       return builder().setKeyspace(keyspace).build();
     }
 
@@ -838,83 +775,48 @@ public class CassandraIO {
      * this entity to the Cassandra table thanks to the annotations.
      */
     public Write<T> withEntity(Class<T> entity) {
-      checkArgument(
-          entity != null,
-          "CassandraIO."
-              + getMutationTypeName()
-              + "().withEntity(entity) called with null "
-              + "entity");
+      checkArgument(entity != null, "CassandraIO." + getMutationTypeName()
+          + "().withEntity(entity) called with null " + "entity");
       return builder().setEntity(entity).build();
     }
 
     /** Specify the username used for authentication. */
     public Write<T> withUsername(String username) {
-      checkArgument(
-          username != null,
-          "CassandraIO."
-              + getMutationTypeName()
-              + "().withUsername(username) called with "
-              + "null username");
+      checkArgument(username != null, "CassandraIO." + getMutationTypeName()
+          + "().withUsername(username) called with " + "null username");
       return builder().setUsername(username).build();
     }
 
     /** Specify the password used for authentication. */
     public Write<T> withPassword(String password) {
-      checkArgument(
-          password != null,
-          "CassandraIO."
-              + getMutationTypeName()
-              + "().withPassword(password) called with "
-              + "null password");
+      checkArgument(password != null, "CassandraIO." + getMutationTypeName()
+          + "().withPassword(password) called with " + "null password");
       return builder().setPassword(password).build();
     }
 
     /** Specify the local DC used by the load balancing policy. */
     public Write<T> withLocalDc(String localDc) {
-      checkArgument(
-          localDc != null,
-          "CassandraIO."
-              + getMutationTypeName()
-              + "().withLocalDc(localDc) called with null"
-              + " localDc");
+      checkArgument(localDc != null, "CassandraIO." + getMutationTypeName()
+          + "().withLocalDc(localDc) called with null" + " localDc");
       return builder().setLocalDc(localDc).build();
     }
 
     public Write<T> withConsistencyLevel(String consistencyLevel) {
-      checkArgument(
-          consistencyLevel != null,
-          "CassandraIO."
-              + getMutationTypeName()
-              + "().withConsistencyLevel"
-              + "(consistencyLevel) called with null consistencyLevel");
+      checkArgument(consistencyLevel != null, "CassandraIO." + getMutationTypeName()
+          + "().withConsistencyLevel" + "(consistencyLevel) called with null consistencyLevel");
       return builder().setConsistencyLevel(consistencyLevel).build();
     }
 
     @Override
     public void validate(PipelineOptions pipelineOptions) {
-      checkState(
-          hosts() != null,
-          "CassandraIO."
-              + getMutationTypeName()
-              + "() requires a list of hosts to be set via withHosts(hosts)");
-      checkState(
-          port() != null,
-          "CassandraIO."
-              + getMutationTypeName()
-              + "() requires a "
-              + "valid port number to be set via withPort(port)");
-      checkState(
-          keyspace() != null,
-          "CassandraIO."
-              + getMutationTypeName()
-              + "() requires a keyspace to be set via "
-              + "withKeyspace(keyspace)");
-      checkState(
-          entity() != null,
-          "CassandraIO."
-              + getMutationTypeName()
-              + "() requires an entity to be set via "
-              + "withEntity(entity)");
+      checkState(hosts() != null, "CassandraIO." + getMutationTypeName()
+          + "() requires a list of hosts to be set via withHosts(hosts)");
+      checkState(port() != null, "CassandraIO." + getMutationTypeName() + "() requires a "
+          + "valid port number to be set via withPort(port)");
+      checkState(keyspace() != null, "CassandraIO." + getMutationTypeName()
+          + "() requires a keyspace to be set via " + "withKeyspace(keyspace)");
+      checkState(entity() != null, "CassandraIO." + getMutationTypeName()
+          + "() requires an entity to be set via " + "withEntity(entity)");
     }
 
     @Override
@@ -928,8 +830,7 @@ public class CassandraIO {
     }
 
     private String getMutationTypeName() {
-      return mutationType() == null
-          ? MutationType.WRITE.name().toLowerCase()
+      return mutationType() == null ? MutationType.WRITE.name().toLowerCase()
           : mutationType().name().toLowerCase();
     }
 
@@ -1008,13 +909,8 @@ public class CassandraIO {
   }
 
   /** Get a Cassandra cluster using hosts and port. */
-  private static Cluster getCluster(
-      List<String> hosts,
-      int port,
-      String username,
-      String password,
-      String localDc,
-      String consistencyLevel) {
+  private static Cluster getCluster(List<String> hosts, int port, String username, String password,
+      String localDc, String consistencyLevel) {
     Cluster.Builder builder =
         Cluster.builder().addContactPoints(hosts.toArray(new String[0])).withPort(port);
 
@@ -1037,12 +933,8 @@ public class CassandraIO {
     return builder.build();
   }
 
-  private static Cluster getCluster(
-      ValueProvider<List<String>> hosts,
-      ValueProvider<Integer> port,
-      ValueProvider<String> username,
-      ValueProvider<String> password,
-      ValueProvider<String> localDc,
+  private static Cluster getCluster(ValueProvider<List<String>> hosts, ValueProvider<Integer> port,
+      ValueProvider<String> username, ValueProvider<String> password, ValueProvider<String> localDc,
       ValueProvider<String> consistencyLevel) {
     Cluster.Builder builder =
         Cluster.builder().addContactPoints(hosts.get().toArray(new String[0])).withPort(port.get());
@@ -1081,18 +973,10 @@ public class CassandraIO {
     private final BiFunction<Mapper<T>, T, ListenableFuture<Void>> mutator;
     private final String operationName;
 
-    Mutator(
-        Write<T> spec,
-        BiFunction<Mapper<T>, T, ListenableFuture<Void>> mutator,
+    Mutator(Write<T> spec, BiFunction<Mapper<T>, T, ListenableFuture<Void>> mutator,
         String operationName) {
-      this.cluster =
-          getCluster(
-              spec.hosts(),
-              spec.port(),
-              spec.username(),
-              spec.password(),
-              spec.localDc(),
-              spec.consistencyLevel());
+      this.cluster = getCluster(spec.hosts(), spec.port(), spec.username(), spec.password(),
+          spec.localDc(), spec.consistencyLevel());
       this.session = cluster.connect(spec.keyspace());
       this.mappingManager = new MappingManager(session);
       this.mutateFutures = new ArrayList<>();
@@ -1101,8 +985,8 @@ public class CassandraIO {
     }
 
     /**
-     * Mutate the entity to the Cassandra instance, using {@link Mapper} obtained with the {@link
-     * MappingManager}. This method uses {@link Mapper#saveAsync(Object)} method, which is
+     * Mutate the entity to the Cassandra instance, using {@link Mapper} obtained with the
+     * {@link MappingManager}. This method uses {@link Mapper#saveAsync(Object)} method, which is
      * asynchronous. Beam will wait for all futures to complete, to guarantee all writes have
      * succeeded.
      */
@@ -1113,10 +997,8 @@ public class CassandraIO {
         // We reached the max number of allowed in flight queries.
         // Write methods are synchronous in Beam,
         // so we wait for each async query to return before exiting.
-        LOG.debug(
-            "Waiting for a batch of {} Cassandra {} to be executed...",
-            CONCURRENT_ASYNC_QUERIES,
-            operationName);
+        LOG.debug("Waiting for a batch of {} Cassandra {} to be executed...",
+            CONCURRENT_ASYNC_QUERIES, operationName);
         waitForFuturesToFinish();
         this.mutateFutures = new ArrayList<>();
       }
