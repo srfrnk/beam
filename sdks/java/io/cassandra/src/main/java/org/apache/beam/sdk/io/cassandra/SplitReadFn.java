@@ -67,8 +67,8 @@ class SplitReadFn extends DoFn<Void, String> {
   @ProcessElement
   public void processElement(ProcessContext context) throws Exception {
     try (
-        Cluster cluster = CassandraHelper.getCluster(hosts.get(), port.get(), username.get(),
-            password.get(), localDc.get(), consistencyLevel.get());
+        Cluster cluster =
+            CassandraHelper.getCluster(hosts, port, username, password, localDc, consistencyLevel);
         Session session = cluster.connect(keyspace.get());) {
 
       if (isMurmur3Partitioner(cluster)) {

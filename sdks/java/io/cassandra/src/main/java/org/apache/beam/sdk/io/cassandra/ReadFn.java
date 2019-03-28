@@ -59,8 +59,8 @@ class ReadFn<OutputT> extends DoFn<String, OutputT> {
 
   @Setup
   public void setup() throws Exception {
-    cluster = CassandraHelper.getCluster(hosts.get(), port.get(), username.get(), password.get(),
-        localDc.get(), consistencyLevel.get());
+    cluster =
+        CassandraHelper.getCluster(hosts, port, username, password, localDc, consistencyLevel);
     session = cluster.connect(keyspace.get());
   }
 
