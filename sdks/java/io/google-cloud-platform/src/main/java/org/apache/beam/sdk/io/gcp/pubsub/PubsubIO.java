@@ -69,6 +69,7 @@ import org.apache.beam.vendor.guava.v26_0_jre.com.google.common.annotations.Visi
 import org.apache.beam.vendor.guava.v26_0_jre.com.google.common.base.MoreObjects;
 import org.apache.beam.vendor.guava.v26_0_jre.com.google.common.collect.ImmutableMap;
 import org.checkerframework.checker.nullness.qual.Nullable;
+import org.joda.time.Duration;
 import org.joda.time.Instant;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
@@ -619,6 +620,12 @@ public class PubsubIO {
 
     abstract boolean getNeedsMessageId();
 
+    abstract boolean getAsBatch();
+
+    abstract long getMaxNumRecords();
+
+    abstract @Nullable Duration getMaxReadTime();
+
     abstract Builder<T> toBuilder();
 
     static <T> Builder<T> newBuilder(SerializableFunction<PubsubMessage, T> parseFn) {
@@ -627,6 +634,9 @@ public class PubsubIO {
       builder.setPubsubClientFactory(FACTORY);
       builder.setNeedsAttributes(false);
       builder.setNeedsMessageId(false);
+      builder.setAsBatch(false);
+      builder.setMaxNumRecords(0L);
+      builder.setMaxReadTime(null);
       return builder;
     }
 
@@ -662,6 +672,12 @@ public class PubsubIO {
       abstract Builder<T> setNeedsAttributes(boolean needsAttributes);
 
       abstract Builder<T> setNeedsMessageId(boolean needsMessageId);
+
+      abstract Builder<T> setAsBatch(boolean asBatch);
+
+      abstract Builder<T> setMaxNumRecords(long maxNumRecords);
+
+      abstract Builder<T> setMaxReadTime(@Nullable Duration maxReadTime);
 
       abstract Builder<T> setClock(Clock clock);
 
@@ -716,6 +732,15 @@ public class PubsubIO {
       }
       return toBuilder()
           .setTopicProvider(NestedValueProvider.of(topic, PubsubTopic::fromPath))
+          .build();
+    }
+
+    /** Creates a bounded reader. */
+    public Read<T> asBatch(long maxNumRecords, @Nullable Duration maxReadTime) {
+      return toBuilder()
+          .setAsBatch(true)
+          .setMaxNumRecords(maxNumRecords)
+          .setMaxReadTime(maxReadTime)
           .build();
     }
 
@@ -815,17 +840,30 @@ public class PubsubIO {
           getSubscriptionProvider() == null
               ? null
               : NestedValueProvider.of(getSubscriptionProvider(), new SubscriptionPathTranslator());
-      PubsubUnboundedSource source =
-          new PubsubUnboundedSource(
-              getClock(),
-              getPubsubClientFactory(),
-              null /* always get project from runtime PipelineOptions */,
-              topicPath,
-              subscriptionPath,
-              getTimestampAttribute(),
-              getIdAttribute(),
-              getNeedsAttributes(),
-              getNeedsMessageId());
+      PTransform<PBegin, PCollection<PubsubMessage>> source =
+          getAsBatch()
+              ? new PubsubBoundedSource(
+                  getClock(),
+                  getPubsubClientFactory(),
+                  null /* always get project from runtime PipelineOptions */,
+                  topicPath,
+                  subscriptionPath,
+                  getTimestampAttribute(),
+                  getIdAttribute(),
+                  getNeedsAttributes(),
+                  getNeedsMessageId(),
+                  getMaxNumRecords(),
+                  getMaxReadTime())
+              : new PubsubUnboundedSource(
+                  getClock(),
+                  getPubsubClientFactory(),
+                  null /* always get project from runtime PipelineOptions */,
+                  topicPath,
+                  subscriptionPath,
+                  getTimestampAttribute(),
+                  getIdAttribute(),
+                  getNeedsAttributes(),
+                  getNeedsMessageId());
       PCollection<T> read =
           input.apply(source).apply(MapElements.into(new TypeDescriptor<T>() {}).via(getParseFn()));
       return read.setCoder(getCoder());
